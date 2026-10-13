@@ -11,12 +11,20 @@ import jakarta.servlet.http.HttpSession;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 
-@WebServlet(name = "loginController", value = "/login")
+// One controller, two URLs: /login (sign in) and /signup (create account)
+@WebServlet(name = "loginController", urlPatterns = {"/login", "/signup"})
 public class loginController extends HttpServlet {
 
     public static final String SESSION_MEMBER = "loggedInMember";
     public static final String SESSION_BOOKS = "books";
+
+    private static final String LOGIN_VIEW = "/login.jsp";
+    private static final String SIGNUP_VIEW = "/WEB-INF/signup.jsp";
+
+    private static final int MIN_PASSWORD_LENGTH = 8;
+    private static final String EMAIL_PATTERN = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
 
     private ArrayList<Member> members = new ArrayList<>();
     private ArrayList<Book> books = new ArrayList<>();
@@ -77,11 +85,23 @@ public class loginController extends HttpServlet {
             response.sendRedirect(request.getContextPath() + "/catalogue");
             return;
         }
-        request.getRequestDispatcher("/login.jsp").forward(request, response);
+        String view = isSignupRequest(request) ? SIGNUP_VIEW : LOGIN_VIEW;
+        request.getRequestDispatcher(view).forward(request, response);
     }
 
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        if (isSignupRequest(request)) {
+            handleSignup(request, response);
+        } else {
+            handleLogin(request, response);
+        }
+    }
+
+    // ---------- Login ----------
+
+    private void handleLogin(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
         String email = request.getParameter("email");
@@ -89,12 +109,7 @@ public class loginController extends HttpServlet {
 
         Member foundMember = null;
         if (email != null && password != null && !email.isBlank() && !password.isBlank()) {
-            for (Member member : members) {
-                if (email.equalsIgnoreCase(member.getEmail()) && password.equals(member.getPassword())) {
-                    foundMember = member;
-                    break;
-                }
-            }
+            foundMember = findMember(email.trim(), password);
         }
 
         if (foundMember != null) {
@@ -105,7 +120,100 @@ public class loginController extends HttpServlet {
             response.sendRedirect(request.getContextPath() + "/catalogue");
         } else {
             request.setAttribute("loginError", "Invalid email or password. Please try again.");
-            request.getRequestDispatcher("/login.jsp").forward(request, response);
+            request.getRequestDispatcher(LOGIN_VIEW).forward(request, response);
         }
+    }
+
+    private Member findMember(String email, String password) {
+        synchronized (members) {
+            for (Member member : members) {
+                if (email.equalsIgnoreCase(member.getEmail()) && password.equals(member.getPassword())) {
+                    return member;
+                }
+            }
+        }
+        return null;
+    }
+
+    // ---------- Signup ----------
+
+    private void handleSignup(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+
+        String firstName = trim(request.getParameter("firstName"));
+        String lastName = trim(request.getParameter("lastName"));
+        String email = trim(request.getParameter("email"));
+        String password = request.getParameter("password");
+        String confirmPassword = request.getParameter("confirmPassword");
+
+        List<String> errors = new ArrayList<>();
+
+        if (firstName.isEmpty()) {
+            errors.add("Enter your first name.");
+        }
+        if (lastName.isEmpty()) {
+            errors.add("Enter your last name.");
+        }
+        if (!email.matches(EMAIL_PATTERN)) {
+            errors.add("Enter a valid email address.");
+        }
+        if (password == null || password.length() < MIN_PASSWORD_LENGTH) {
+            errors.add("Use a password with at least " + MIN_PASSWORD_LENGTH + " characters.");
+        } else if (!password.equals(confirmPassword)) {
+            errors.add("The two passwords don't match.");
+        }
+
+        if (errors.isEmpty()) {
+            // check + add inside one lock so two people can't register the same email at once
+            synchronized (members) {
+                if (emailExists(email)) {
+                    errors.add("An account with this email already exists. Sign in instead.");
+                } else {
+                    members.add(new Member(nextMemberId(), firstName, lastName, email, password));
+                }
+            }
+        }
+
+        if (errors.isEmpty()) {
+            // redirect after a successful POST so a page refresh doesn't resubmit the form
+            response.sendRedirect(request.getContextPath() + "/login?registered=true");
+            return;
+        }
+
+        // the view escapes these with <c:out>, so they are passed through as-is
+        request.setAttribute("signupErrors", errors);
+        request.setAttribute("firstName", firstName);
+        request.setAttribute("lastName", lastName);
+        request.setAttribute("email", email);
+        request.getRequestDispatcher(SIGNUP_VIEW).forward(request, response);
+    }
+
+    // call only while holding the lock on members
+    private boolean emailExists(String email) {
+        for (Member member : members) {
+            if (email.equalsIgnoreCase(member.getEmail())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // call only while holding the lock on members
+    private int nextMemberId() {
+        int highest = 0;
+        for (Member member : members) {
+            highest = Math.max(highest, member.getMemberId());
+        }
+        return highest + 1;
+    }
+
+    // ---------- Helpers ----------
+
+    private boolean isSignupRequest(HttpServletRequest request) {
+        return "/signup".equals(request.getServletPath());
+    }
+
+    private String trim(String value) {
+        return value == null ? "" : value.trim();
     }
 }

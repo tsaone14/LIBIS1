@@ -12,8 +12,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-@WebServlet(name = "catalogueController", value = "/catalogue")
+// One controller, two URLs: /catalogue (list + search) and /book?id=N (book details)
+@WebServlet(name = "catalogueController", urlPatterns = {"/catalogue", "/book"})
 public class CatalogueController extends HttpServlet {
+
+    private static final String CATALOGUE_VIEW = "/WEB-INF/views/welcome.jsp";
+    private static final String BOOK_VIEW = "/WEB-INF/views/book.jsp";
 
     @Override
     @SuppressWarnings("unchecked")
@@ -22,6 +26,19 @@ public class CatalogueController extends HttpServlet {
 
         HttpSession session = request.getSession();
         List<Book> allBooks = (List<Book>) session.getAttribute(loginController.SESSION_BOOKS);
+
+        request.setAttribute("member", session.getAttribute(loginController.SESSION_MEMBER));
+
+        if ("/book".equals(request.getServletPath())) {
+            showBookDetails(request, response, allBooks);
+        } else {
+            showCatalogue(request, response, allBooks);
+        }
+    }
+
+
+    private void showCatalogue(HttpServletRequest request, HttpServletResponse response, List<Book> allBooks)
+            throws ServletException, IOException {
 
         String term = request.getParameter("q");
         List<Book> results = new ArrayList<>();
@@ -39,9 +56,45 @@ public class CatalogueController extends HttpServlet {
             }
         }
 
-        request.setAttribute("member", session.getAttribute(loginController.SESSION_MEMBER));
         request.setAttribute("books", results);
         request.setAttribute("searchTerm", term);
-        request.getRequestDispatcher("/WEB-INF/views/welcome.jsp").forward(request, response);
+        request.getRequestDispatcher(CATALOGUE_VIEW).forward(request, response);
+    }
+
+    // ---------- Book details ----------
+
+    private void showBookDetails(HttpServletRequest request, HttpServletResponse response, List<Book> allBooks)
+            throws ServletException, IOException {
+
+        Book found = null;
+        Integer id = parseId(request.getParameter("id"));
+
+        if (id != null) {
+            for (Book book : allBooks) {
+                if (book.getBookId() == id) {
+                    found = book;
+                    break;
+                }
+            }
+        }
+
+        if (found == null) {
+            // the view shows a friendly "book not found" message when "book" is absent
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        } else {
+            request.setAttribute("book", found);
+        }
+        request.getRequestDispatcher(BOOK_VIEW).forward(request, response);
+    }
+
+    private Integer parseId(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

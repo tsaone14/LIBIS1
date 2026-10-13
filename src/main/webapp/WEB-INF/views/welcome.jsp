@@ -23,6 +23,8 @@
         .book-table-container { background: white; border-radius: 15px; padding: 20px; }
         .badge-available { background: #d4edda; color: #155724; padding: 5px 12px; border-radius: 20px; font-weight: 600; font-size: 12px; }
         .badge-unavailable { background: #f8d7da; color: #721c24; padding: 5px 12px; border-radius: 20px; font-weight: 600; font-size: 12px; }
+        .view-link { color: white; background: #0d6efd; text-decoration: none; margin-right: 6px; padding: 4px 10px; border: 1px solid #0d6efd; border-radius: 4px; font-size: 12px; display: inline-block; }
+        .view-link:hover { background: #0b5ed7; color: white; }
         .dummy-link { color: #4a90e2; text-decoration: none; margin-right: 6px; padding: 4px 10px; border: 1px solid #4a90e2; border-radius: 4px; font-size: 12px; display: inline-block; }
         .dummy-link:hover { background-color: #4a90e2; color: white; }
         .btn-search { background: #0a1628; color: white; }
@@ -104,6 +106,7 @@
                                     </c:choose>
                                 </td>
                                 <td>
+                                    <a href="${pageContext.request.contextPath}/book?id=${book.bookId}" class="view-link">View</a>
                                     <a href="#" class="dummy-link">Borrow</a>
                                     <a href="#" class="dummy-link">Reserve</a>
                                 </td>

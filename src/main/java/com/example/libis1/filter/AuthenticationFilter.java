@@ -38,9 +38,9 @@ public class AuthenticationFilter implements Filter {
         }
     }
 
-    // Login page, login controller and static assets stay reachable without a session
     private boolean isPublic(String path) {
         return path.equals("/login")
+                || path.equals("/signup")
                 || path.equals("/login.jsp")
                 || path.startsWith("/css/")
                 || path.startsWith("/js/")
